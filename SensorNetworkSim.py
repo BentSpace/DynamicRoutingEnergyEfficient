@@ -112,8 +112,16 @@ nodeTables = {
     },
 }
 
+# cost of the link from node x to node y.
+def c(x,y):
+    if y in sensorGraphSimple[x]:
+        return 1 / actualPowerRemaining[y]
+    else:
+        return 10000
+
 time = 0
-print(nodeTables["a"]["a"]["b"])
+print(c("a","gw"))
+
 
 
 
