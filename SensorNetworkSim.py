@@ -10,7 +10,7 @@
 # take the least cost path, based on the sensors distance vector estimate of the
 # least cost path.  The total cost of a path is equal to: 
 # (1 / powerRemainingNode + 1 / powerRemainingNode + ...(for each node in path))
-
+# from IPython.display import display, HTML
 import pandas as pd
 
 # each node is a sensor.  gw is the gateway where the sensors need to send their data
@@ -168,29 +168,6 @@ import pandas as pd
 
 # An individual sensor node in the network
 class sensorNode:
-    def __init__(self, name) -> None:
-        self.name = name
-        self.powerRemaining = 100
-        # The rows in the forwarding table are the distance vectors of itself 
-        # and it's neighbooring nodes.  
-        # The columns contain the estimated cost to reach that node in the column
-        # label, from the node in the row label
-        self.forwardingTable = pd.DataFrame
-        self.forwardingTable.columns = sensorNetworkSim.N
-        self.neighborsPowerRemaing = {}
-        # print(self.forwardingTable)
-
-    # Cost of the link from node x to node v.
-    def c(self,x,v):
-        if x == v:
-            return 0
-        elif v in self.neighborsPowerRemaing[v]:
-            return 1 / self.neighborsPowerRemaing[v]
-        else:
-            return 10000
-
-class sensorNetworkSim:
-    # N = ["a","b","c","gw"]
     sensorGraphSimple = {
     "a" : ["b", "c"],
     "b" : ["a", "gw"],
@@ -198,14 +175,50 @@ class sensorNetworkSim:
     "gw": ["b", "c"]
     }
     N = list(sensorGraphSimple.keys()) # list of Nodes in network
-    print(N)
+    def __init__(self, name) -> None:
+        self.name = name
+        self.powerRemaining = 100
+        # The rows in the forwarding table are the distance vectors of itself 
+        # and it's neighbooring nodes.  
+        # The columns contain the estimated cost to reach that node in the column
+        # label, from the node in the row label
+        dfIndex = list(self.sensorGraphSimple[self.name])
+        dfIndex.insert(0, self.name)
+        self.forwardingTable = pd.DataFrame(index=dfIndex, columns=self.N)
+        # self.forwardingTable.columns = self.N
+        self.neighborsPowerRemaining = {}
+        for v in self.sensorGraphSimple[self.name]:
+            self.neighborsPowerRemaining[v] = 100
+        print(self.neighborsPowerRemaining)
+        self.forwardingTable = self.forwardingTable.fillna(10000)
+        # construct own DV, to start need assume nodes fully charged
+        for v in self.sensorGraphSimple[self.name]:
+            self.forwardingTable.at[self.name, v] = 1/100
+        self.forwardingTable = self.forwardingTable.fillna(10000)
+        print(self.forwardingTable)
 
+
+
+     
+    # Cost of the link from node x to node v.
+    def c(self,x,v):
+        if x == v:
+            return 0
+        elif v in self.neighborsPowerRemaining[v]:
+            return 1 / self.neighborsPowerRemaining[v]
+        else:
+            return 10000
+
+    # Sends own DV to v
+    # def sendDV(self, v)
+
+class sensorNetworkSim:
     def __init__(self) -> None:
         self.initSensorNodes()
   
 
     def initSensorNodes(self):
-        sensorNames = ["a","b","c","d","e","f","g","h","i","j","gw"]
+        sensorNames = ["a","b","c","gw"]
         for sensor in sensorNames:
             sensor = sensorNode(sensor)
             # print(sensor.name)
