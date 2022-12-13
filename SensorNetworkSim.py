@@ -189,13 +189,19 @@ class sensorNode:
         self.neighborsPowerRemaining = {}
         for v in self.sensorGraphSimple[self.name]:
             self.neighborsPowerRemaining[v] = 100
-        print(self.neighborsPowerRemaining)
+        # print(self.neighborsPowerRemaining)
         self.forwardingTable = self.forwardingTable.fillna(10000)
         # construct own DV, to start need assume nodes fully charged
         for v in self.sensorGraphSimple[self.name]:
             self.forwardingTable.at[self.name, v] = 1/100
         self.forwardingTable = self.forwardingTable.fillna(10000)
-        print(self.forwardingTable)
+
+        # set cells with matching index and label to 0
+        for x in dfIndex:
+            for y in self.N:
+                if x == y:
+                    self.forwardingTable.at[x,y] = 0
+        # print(self.forwardingTable)
 
 
 
@@ -210,18 +216,38 @@ class sensorNode:
             return 10000
 
     # Sends own DV to v
-    # def sendDV(self, v)
+    def sendDV(self, v):
+        ownDV = self.forwardingTable.iloc[0]
+        sensorNetworkSim.dictOfSensorObjects[v].receiveDV(self.name, ownDV)
 
+    # For receiveing a DV from node x
+    def receiveDV(self, x, DV):
+        self.forwardingTable.loc[x] = DV
+        print(self.forwardingTable)
+        
 class sensorNetworkSim:
+    sensorGraphSimple = {
+    "a" : ["b", "c"],
+    "b" : ["a", "gw"],
+    "c" : ["a", "gw"],
+    "gw": ["b", "c"]
+    }
+    N = list(sensorGraphSimple.keys())
+    dictOfSensorObjects = {}
+
     def __init__(self) -> None:
         self.initSensorNodes()
   
-
     def initSensorNodes(self):
-        sensorNames = ["a","b","c","gw"]
-        for sensor in sensorNames:
-            sensor = sensorNode(sensor)
-            # print(sensor.name)
+        
+        # initialize sensors
+        for sensor in self.N:
+            sensorObject = sensorNode(sensor)
+            self.dictOfSensorObjects[sensor] = sensorObject
+        # send intial DV to neighbors
+        for x in self.N:
+            for v in self.sensorGraphSimple[x]:
+                self.dictOfSensorObjects[x].sendDV(v)
     
 if __name__ == '__main__':
     sensorNetworkSim()
