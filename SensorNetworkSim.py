@@ -15,48 +15,48 @@ import pandas as pd
 import time
 import random
 
-# each node is a sensor.  gw is the gateway where the sensors need to send their data
-# sensorGraph = {
-#     "a" : ["b", "c"],
-#     "b" : ["a", "c", "e", "j", "i"],
-#     "c" : ["a", "b", "d", "f", "g", "i"],
-#     "d" : ["e", "gw", "h", "g", "c", "i"],
-#     "e" : ["gw", "d", "i", "b", "j"],
-#     "f" : ["c", "g"],
-#     "g" : ["d", "h", "f", "c"],
-#     "h" : ["gw", "g", "d"],
-#     "i" : ["e", "d", "c", "b"],
-#     "j" : ["e", "b"]
-# }
-
 # An individual sensor node in the network
 class sensorNode:
-    sensorGraphSimple = {
-    "a" : ["b", "c"],
-    "b" : ["a", "gw"],
-    "c" : ["a", "gw"],
-    "gw": ["b", "c"]
+    # sensorGraph = {
+    # "a" : ["b", "c"],
+    # "b" : ["a", "gw"],
+    # "c" : ["a", "gw"],
+    # "gw": ["b", "c"]
+    # }
+    # each node is a sensor.  gw is the gateway where the sensors need to send their data
+    sensorGraph = {
+        "a" : ["b", "c"],
+        "b" : ["a", "c", "e", "j", "i"],
+        "c" : ["a", "b", "d", "f", "g", "i"],
+        "d" : ["c", "e", "g", "h", "i", "gw"],
+        "e" : ["b", "d", "i",  "j", "gw"],
+        "f" : ["c", "g"],
+        "g" : [ "c", "d", "f", "h"],
+        "h" : ["d", "g", "gw"],
+        "i" : ["b", "c", "d", "e"],
+        "j" : ["b", "e"],
+        "gw": ["d", "e", "h"]
     }
-    N = list(sensorGraphSimple.keys()) # list of Nodes in network
+    N = list(sensorGraph.keys()) # list of Nodes in network
     def __init__(self, name) -> None:
         self.name = name
-        self.powerRemaining = 10
+        self.powerRemaining = 100
+        self.timeTillPowerDec = 100
         self.vStarGW = None # The next hop on the least cost path to the gateway
-
         # The rows in the routing table are the distance vectors of itself 
         # and it's neighbooring nodes.  
         # The columns contain the estimated cost to reach that node in the column
         # label, from the node in the row label
-        dfIndex = list(self.sensorGraphSimple[self.name])
+        dfIndex = list(self.sensorGraph[self.name])
         dfIndex.insert(0, self.name)
         self.routingTable = pd.DataFrame(index=dfIndex, columns=self.N)
         self.neighborsPowerRemaining = {}
-        for v in self.sensorGraphSimple[self.name]:
+        for v in self.sensorGraph[self.name]:
             self.neighborsPowerRemaining[v] = 100
         self.routingTable = self.routingTable.fillna(10000)
 
         # construct own DV, to start need assume nodes fully charged
-        for v in self.sensorGraphSimple[self.name]:
+        for v in self.sensorGraph[self.name]:
             self.routingTable.at[self.name, v] = 1/100
         self.routingTable = self.routingTable.fillna(10000)
 
@@ -75,11 +75,15 @@ class sensorNode:
         else:
             return 10000
 
+    def sendDVtoNeigboors(self):
+        for v in self.sensorGraph[self.name]:
+            self.sendDV(v)
+
     # Sends own DV to v
     def sendDV(self, v):
-        self.decrementPower()
         ownDV = self.routingTable.iloc[0]
-        print("sendDV", self.name, " -> ", v)
+        # print("sendDV", self.name, "->", v)
+        self.decrementPower()
         sensorNetworkSim.dictOfSensorObjects[v].receiveDV(self.name, ownDV, self.powerRemaining)
 
     # For receiveing a DV from node x
@@ -96,7 +100,11 @@ class sensorNode:
         for y in self.N:
             result = self.D(self.name, y)
             newDV.append(result)
-        self.routingTable.loc[self.name] = newDV
+        oldDV = self.routingTable.loc[self.name]
+        if not oldDV.equals(newDV):
+            self.routingTable.loc[self.name] = newDV
+            # print(self.routingTable.to_string)
+            self.sendDVtoNeigboors()
 
     # Distance vector update algorithm. Estimated cost from node x to y.
     def D(self,x,y):
@@ -106,13 +114,15 @@ class sensorNode:
             mini = 10000
             vStar = None
             # for each neighbor v of x
-            for v in self.sensorGraphSimple[x]:
+            for v in self.sensorGraph[x]:
                 result = self.c(x,v) + self.routingTable.at[v,y] 
                 if result < mini:
                     mini = result
                     vStar = v
             # if calculating path to gw, update vStarGW
             if y == "gw":
+                if x == 'a':
+                    pass
                 self.vStarGW = vStar
             return mini
 
@@ -122,35 +132,54 @@ class sensorNode:
     def sendPacket(self):
         packetNum = random.randrange(1, 1000)
         data = random.randrange(1, 100)
+        # print("sendPacket#: ", packetNum, "data: ", data,  self.name, "->", self.vStarGW)
         self.decrementPower()
         sensorNetworkSim.dictOfSensorObjects[self.vStarGW].receivePacket(packetNum, data)
-        print("sendPacket#: ", packetNum, "data: ", data,  self.name, " -> ", self.vStarGW)
-        
         
     def receivePacket(self, packetNum, data):
         if self.name != "gw":
             self.relayPacket(packetNum, data)
 
     def relayPacket(self, packetNum, data):
+        # print("relayPacket#: ", packetNum, "data: ", data,  self.name, "->", self.vStarGW)
         self.decrementPower()
         sensorNetworkSim.dictOfSensorObjects[self.vStarGW].receivePacket(packetNum, data)
-        print("sendPacket#: ", packetNum, "data: ", data,  self.name, " -> ", self.vStarGW)
-
+        
     def decrementPower(self):
         if self.name != "gw":
-            self.powerRemaining = self.powerRemaining - 1
-            print("node", self.name, "powerRemaining",self.powerRemaining)
+            self.timeTillPowerDec = self.timeTillPowerDec - 1
+            if self.timeTillPowerDec == 0:
+                self.powerRemaining -= 1
+                print("node", self.name, "powerRemaining",self.powerRemaining)
+                self.timeTillPowerDec = 100
+                self.sendDVtoNeigboors
         if self.powerRemaining == 0:
             self.nodeDead()
 
+class gatewayNode(sensorNode):
+    pass
+
 class sensorNetworkSim:
-    sensorGraphSimple = {
-    "a" : ["b", "c"],
-    "b" : ["a", "gw"],
-    "c" : ["a", "gw"],
-    "gw": ["b", "c"]
+    # sensorGraph = {
+    # "a" : ["b", "c"],
+    # "b" : ["a", "gw"],
+    # "c" : ["a", "gw"],
+    # "gw": ["b", "c"]
+    # }
+    sensorGraph = {
+        "a" : ["b", "c"],
+        "b" : ["a", "c", "e", "j", "i"],
+        "c" : ["a", "b", "d", "f", "g", "i"],
+        "d" : ["c", "e", "g", "h", "i", "gw"],
+        "e" : ["b", "d", "i",  "j", "gw"],
+        "f" : ["c", "g"],
+        "g" : ["c", "d", "f", "h"],
+        "h" : ["d", "g", "gw"],
+        "i" : ["b", "c", "d", "e"],
+        "j" : ["b", "e"],
+        "gw": ["d", "e", "h"]
     }
-    N = list(sensorGraphSimple.keys())
+    N = list(sensorGraph.keys())
     dictOfSensorObjects = {}
     nodeDead = False
 
@@ -165,20 +194,33 @@ class sensorNetworkSim:
             self.dictOfSensorObjects[sensor] = sensorObject
         # send intial DV to neighbors
         for x in self.N:
-            for v in self.sensorGraphSimple[x]:
+            for v in self.sensorGraph[x]:
                 self.dictOfSensorObjects[x].sendDV(v)
+        # update all node's own DV
+        for x in self.N:
+            self.dictOfSensorObjects[x].updateOwnDV()
         self.runSimulation()
 
     def runSimulation(self):
         start = time.time()
+        packetsSentPerNode = 0
+        sendDVsEveryNumPackets = 5
         while not self.nodeDead:
             # sensors send out packets every 1 second
             for sensor in self.dictOfSensorObjects.values():
                 if sensor.name != "gw":
                     sensor.sendPacket()
-            time.sleep(1)
+            # packetsSentPerNode += 1
+            # if packetsSentPerNode % sendDVsEveryNumPackets == 0:
+            #     self.sendDVsOutAllNodes()
+            # time.sleep(.1)
         end = time.time()   
         print("Network stayed alive for: ", end - start, "seconds")
+    
+    def sendDVsOutAllNodes(self):
+        for sensor in self.dictOfSensorObjects.values():
+            if sensor.name != "gw":
+                sensor.sendDVtoNeigboors()
 
 if __name__ == '__main__':
     sensorNetworkSim()
