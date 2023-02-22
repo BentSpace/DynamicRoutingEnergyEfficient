@@ -14,6 +14,8 @@
 import pandas as pd
 import time
 import random
+import sys
+sys.setrecursionlimit(20000)
 
 # An individual sensor node in the network
 class sensorNode:
@@ -41,7 +43,7 @@ class sensorNode:
     def __init__(self, name) -> None:
         self.name = name
         self.powerRemaining = 100
-        self.timeTillPowerDec = 100
+        self.timeTillPowerDec = 1000
         self.vStarGW = None # The next hop on the least cost path to the gateway
         # The rows in the routing table are the distance vectors of itself 
         # and it's neighbooring nodes.  
@@ -71,7 +73,10 @@ class sensorNode:
         if x == v:
             return 0
         elif v in self.neighborsPowerRemaining.keys():
-            return 1 / self.neighborsPowerRemaining[v]
+            if self.neighborsPowerRemaining[v] == 0:
+                self.nodeDead()
+            else:
+                return 1.0 / self.neighborsPowerRemaining[v] * 1000.0
         else:
             return 10000
 
@@ -132,7 +137,7 @@ class sensorNode:
     def sendPacket(self):
         packetNum = random.randrange(1, 1000)
         data = random.randrange(1, 100)
-        # print("sendPacket#: ", packetNum, "data: ", data,  self.name, "->", self.vStarGW)
+        print("sendPacket#: ", packetNum, "data: ", data,  self.name, "->", self.vStarGW)
         self.decrementPower()
         sensorNetworkSim.dictOfSensorObjects[self.vStarGW].receivePacket(packetNum, data)
         
@@ -141,7 +146,7 @@ class sensorNode:
             self.relayPacket(packetNum, data)
 
     def relayPacket(self, packetNum, data):
-        # print("relayPacket#: ", packetNum, "data: ", data,  self.name, "->", self.vStarGW)
+        print("relayPacket#: ", packetNum, "data: ", data,  self.name, "->", self.vStarGW)
         self.decrementPower()
         sensorNetworkSim.dictOfSensorObjects[self.vStarGW].receivePacket(packetNum, data)
         
@@ -152,9 +157,10 @@ class sensorNode:
                 self.powerRemaining -= 1
                 print("node", self.name, "powerRemaining",self.powerRemaining)
                 self.timeTillPowerDec = 100
-                self.sendDVtoNeigboors
-        if self.powerRemaining == 0:
-            self.nodeDead()
+                if self.powerRemaining == 0:
+                    self.nodeDead()
+                self.updateOwnDV()
+ 
 
 class gatewayNode(sensorNode):
     pass
